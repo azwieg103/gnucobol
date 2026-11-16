@@ -1,0 +1,1799 @@
+## Copyright (C) 2018-2020, 2022, 2024-2026 Free Software Foundation, Inc.
+## Written by Edward Hart, Simon Sobisch
+##
+## This file is part of GnuCOBOL.
+##
+## The GnuCOBOL compiler is free software: you can redistribute it
+## and/or modify it under the terms of the GNU General Public License
+## as published by the Free Software Foundation, either version 3 of the
+## License, or (at your option) any later version.
+##
+## GnuCOBOL is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with GnuCOBOL.  If not, see <https://www.gnu.org/licenses/>.
+
+AT_SETUP([XML GENERATE general])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION       DIVISION.
+       PROGRAM-ID.          prog.
+
+       DATA                 DIVISION.
+       WORKING-STORAGE      SECTION.
+       01  namespace-str    PIC X(100)
+                            VALUE 'http://www.w3.org/1999/xhtml'.
+       01  prefix-str       PIC X(100) VALUE 'pre'.
+
+       01  out              PIC X(200).
+       01  rec.
+           03  a            PIC X(3) VALUE 'A'.
+           03  b            PIC X(3) VALUE ALL 'B'.
+           03  c.
+               05  d        PIC X(3) VALUE SPACES.
+
+       01  0SpecialTAGName  PIC X(3) VALUE "abc".
+
+       01  employee.
+           05 id            PIC 9(1)  value 1.
+           05 name          PIC X(10) value "Someone".
+           05 dept          PIC X(10) value "Marketing".
+
+       PROCEDURE            DIVISION.
+           XML GENERATE out
+               FROM rec
+               WITH XML-DECLARATION
+               NAME OF a IS 'alpha', d IS 'ABCDEF';
+               TYPE OF a IS ATTRIBUTE
+               SUPPRESS WHEN SPACES
+           IF out <> '<?xml version="1.0"?>' & X'0A'
+                   & '<rec alpha="A"><b>BBB</b></rec>'
+               DISPLAY 'Test 1 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM d
+           IF out <> '<d> </d>'
+               DISPLAY 'Test 2 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM c, WITH ATTRIBUTES.
+           IF out <> '<c d=" "/>'
+               DISPLAY 'Test 3 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           MOVE ALL 'A' TO a
+           MOVE ALL 'C' TO c
+           XML GENERATE out FROM rec, TYPE OF a IS CONTENT,
+               b IS CONTENT, d IS CONTENT
+           IF out <> '<rec>AAABBB<c>CCC</c></rec>'
+               DISPLAY 'Test 4 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM rec, TYPE OF a IS CONTENT, d IS CONTENT
+           IF out <> '<rec>AAA<b>BBB</b><c>CCC</c></rec>'
+               DISPLAY 'Test 5 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM c, NAMESPACE namespace-str,
+               NAMESPACE-PREFIX prefix-str
+           IF out <> '<pre:c xmlns:pre="http://www.w3.org/1999/xhtml">'-
+                   '<pre:d>CCC</pre:d></pre:c>'
+               DISPLAY 'Test 6 failed: ' FUNCTION TRIM (out)
+                   " " XML-CODE
+           END-IF
+
+           MOVE SPACES TO namespace-str, prefix-str
+           XML GENERATE out FROM c, NAMESPACE namespace-str,
+               NAMESPACE-PREFIX prefix-str
+           IF out <> '<c><d>CCC</d></c>'
+               DISPLAY 'Test 7 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           MOVE ALL "&" TO d
+           XML GENERATE out FROM d
+           IF out <> '<d>&amp;&amp;&amp;</d>'
+               DISPLAY 'Test 8 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           *> Test the case of the id in the DATA DIVISION is preserved.
+           XML GENERATE out FROM 0specialtagname
+           IF out <> '<_0SpecialTAGName>abc</_0SpecialTAGName>'
+               DISPLAY 'Test 9 failed: ' FUNCTION TRIM (out)
+           END-IF
+           .
+
+           *> Another test with mixed attributes and values
+           XML GENERATE out FROM EMPLOYEE TYPE OF ID IS ATTRIBUTE
+           IF out <> '<employee id="1">'-
+                     '<name>Someone</name>'-
+                     '<dept>Marketing</dept>'-
+                     '</employee>'
+               DISPLAY 'Test 10 failed: ' FUNCTION TRIM (out)
+           END-IF
+           .
+])
+
+AT_CHECK([$COMPILE -fnot-reserved=ID prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML GENERATE WITH ATTRIBUTES])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION       DIVISION.
+       PROGRAM-ID.          prog.
+
+       DATA                 DIVISION.
+       WORKING-STORAGE      SECTION.
+       01  out              PIC X(200).
+       01  NSTD.
+           05  ATT1 pic x(4) value "ATT1".
+           05  CHLD1.
+               10  NSTD_ATT1 pic x(9) value "NSTD_ATT1".
+               10  NSTD_ATT2 pic x(9) value "NSTD_ATT2".
+           05  ATT2 pic x(4) value "ATT2".
+
+       PROCEDURE            DIVISION.
+           XML GENERATE out FROM NSTD WITH ATTRIBUTES
+      *                 as generated by GnuCOBOL:
+           IF   out =   '<NSTD ATT1="ATT1" ATT2="ATT2"><CHLD1 NSTD_ATT1=
+      -                 '"NSTD_ATT1" NSTD_ATT2="NSTD_ATT2"/></NSTD>'
+      *                 as generated by IBM Enterprise COBOL:
+                  OR    '<NSTD ATT1="ATT1" ATT2="ATT2"><CHLD1 NSTD_ATT1=
+      -              '"NSTD_ATT1" NSTD_ATT2="NSTD_ATT2"></CHLD1></NSTD>'
+               CONTINUE
+           ELSE
+               DISPLAY 'Test 11 failed: ' FUNCTION TRIM (out)
+           END-IF
+           GOBACK.
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML GENERATE SUPPRESS])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION       DIVISION.
+       PROGRAM-ID.          prog.
+
+       DATA                 DIVISION.
+       WORKING-STORAGE      SECTION.
+       01  a.
+           03  b            PIC X(3) VALUE SPACES.
+           03  c            PIC X(3) VALUE SPACES.
+
+       01  p.
+           03  q            PIC 9(3) VALUE ZERO.
+           03  r            PIC X(3) VALUE "abc".
+
+       01  x.
+           03  y.
+               05  z        PIC X VALUE SPACE.
+
+       01  out              PIC X(100).
+
+       PROCEDURE            DIVISION.
+           XML GENERATE out FROM a SUPPRESS WHEN SPACES
+           IF out <> '<a/>'
+               DISPLAY 'Test 1 failed: ' out
+           END-IF
+
+           XML GENERATE out FROM a SUPPRESS b WHEN SPACES
+           IF out <> '<a><c> </c></a>'
+               DISPLAY 'Test 2 failed: ' out
+           END-IF
+
+           XML GENERATE out FROM a SUPPRESS EVERY NONNUMERIC WHEN SPACES
+           IF out <> '<a/>'
+               DISPLAY 'Test 3 failed: ' out
+           END-IF
+
+           XML GENERATE out FROM p
+               WITH ATTRIBUTES
+               SUPPRESS EVERY ATTRIBUTE WHEN ZERO
+           IF out <> '<p r="abc"/>'
+               DISPLAY 'Test 4 failed: ' out
+           END-IF
+
+           XML GENERATE out FROM a
+               SUPPRESS c WHEN LOW-VALUES, c WHEN SPACES,
+                    c WHEN LOW-VALUES,
+                    EVERY ELEMENT WHEN SPACES
+           IF out <> '<a><c> </c></a>'
+               DISPLAY 'Test 5 failed: ' out
+           END-IF
+
+           MOVE HIGH-VALUES TO b
+           MOVE LOW-VALUES TO c
+           XML GENERATE out FROM a
+               SUPPRESS EVERY ELEMENT WHEN HIGH-VALUES OR LOW-VALUES
+                   OR ZEROES OR SPACES
+           IF out <> '<a/>'
+               DISPLAY 'Test 6 failed: ' out
+           END-IF
+
+           XML GENERATE out FROM x SUPPRESS z WHEN SPACE
+           IF out <> '<x/>'
+               DISPLAY 'Test 7 failed: ' out
+           END-IF
+           .
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML GENERATE exceptions])
+AT_KEYWORDS([extensions XML-CODE])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  normal-str PIC X(200).
+
+       01  valid-rec.
+           03  a      PIC XX VALUE "aa".
+           03  b      PIC XX VALUE "bb".
+       01  short-str  PIC X(5).
+       01  short-str2 PIC X(22).
+       01  xml-len    PIC 99.
+
+       01  valid-namespace    CONSTANT "http://www.w3.org/1999/xhtml".
+       01  invalid-namespace  CONSTANT X"00".
+       01  invalid-prefix     PIC XXX VALUE "#<>".
+       01  invalid-content    PIC X(3) VALUE X"8AFF00".
+       01  count-in-too-small PIC 9.
+
+       PROCEDURE DIVISION.
+           MOVE ALL 'A' TO short-str
+           XML GENERATE short-str FROM valid-rec
+               COUNT IN xml-len
+           IF  XML-CODE   <> 400
+            OR short-str  <> "<vali"
+            OR xml-len    <> 42
+      *> FIXME: should be
+      *>    OR short-str  <> "AAAAA"
+      *>    OR xml-len    <> 0
+              DISPLAY "Failed 1a: " short-str  " " xml-len " " XML-CODE
+           END-IF
+           MOVE ALL 'B' TO short-str2
+           XML GENERATE short-str2 FROM valid-rec
+               COUNT IN xml-len
+           IF  XML-CODE   <> 400
+            OR short-str2 <> "<valid-rec><a>aa</a><b"
+            OR xml-len    <> 42
+      *> FIXME: should be
+      *>    OR short-str2 <> "<valid-rec><a>aa</a>BB"
+      *>    OR xml-len    <> 20
+              DISPLAY "Failed 1b: " short-str2 " " xml-len " " XML-CODE
+           END-IF
+
+           XML GENERATE normal-str FROM valid-rec
+               NAMESPACE invalid-namespace
+           IF XML-CODE <> 416
+              DISPLAY "Failed 2: " FUNCTION TRIM (normal-str)
+                       " " XML-CODE
+           END-IF
+
+           XML GENERATE normal-str FROM invalid-content
+           IF  XML-CODE <> 417
+            OR normal-str <> '<hex.invalid-content>8aff00</hex.'-
+                            'invalid-content>'
+              DISPLAY "Failed 3: " FUNCTION TRIM (normal-str)
+                      " " XML-CODE
+           END-IF
+
+           XML GENERATE normal-str FROM valid-rec
+               NAMESPACE "http://www.w3.org/1999/xhtml"
+               NAMESPACE-PREFIX invalid-prefix
+           IF  XML-CODE <> 419
+              DISPLAY "Failed 4: " FUNCTION TRIM (normal-str)
+                       " " XML-CODE
+           END-IF
+
+           XML GENERATE normal-str FROM valid-rec
+                ON EXCEPTION
+                    DISPLAY "Failed 5: EXCEPTION "
+                        FUNCTION TRIM (normal-str)
+                        " " XML-CODE
+                    END-DISPLAY
+                    *> The END-DISPLAY is important! Otherwise the DISPLAY will
+                    *> take the NOT ON EXCEPTION.
+
+                NOT ON EXCEPTION
+                    IF XML-CODE <> 0
+                        DISPLAY "Failed 5: NOT EXCEPTION "
+                            FUNCTION TRIM (normal-str)
+                            " " XML-CODE
+                    END-IF
+           END-XML
+
+           XML GENERATE short-str FROM valid-rec
+                NOT EXCEPTION
+                    DISPLAY "Failed 6: NOT EXCEPTION "
+                        FUNCTION TRIM (normal-str)
+                        " " XML-CODE
+                    END-DISPLAY
+
+                EXCEPTION
+                    IF XML-CODE <> 400
+                        DISPLAY "Failed 6: ON EXCEPTION "
+                            FUNCTION TRIM (normal-str)
+                            " " XML-CODE
+                    END-IF
+           END-XML
+           .
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML GENERATE record selection])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+# TO-DO: Add support for generating OCCURS items.
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  a.
+           03  b.
+               05 c1 PIC X(3) VALUE "abc".
+               05 c2 PIC 9(3) VALUE 0.
+           03  d REDEFINES b.
+               05  e PIC X(6).
+           03  f PIC X OCCURS 3 VALUE "f".
+
+       66  h RENAMES c1 THRU c2.
+
+       01  out PIC X(60).
+
+       PROCEDURE DIVISION.
+           *> XML GENERATE out FROM a
+           *> IF out <> '<a><b><c1>abc</c1><c2>0</c2></b><f>f</f><f>f</f>'-
+           *>          '<f>f</f></a>'
+           *>    DISPLAY "Failed 1: " FUNCTION TRIM (out)
+           *> END-IF
+
+           XML GENERATE out FROM d
+           IF out <> '<d><e>abc000</e></d>'
+               DISPLAY "Failed 2: " FUNCTION TRIM (out)
+           END-IF
+           .
+       END PROGRAM prog.
+])
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML GENERATE trimming])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+# TO-DO: Add support for IBM/COBOL 2002 edited floating point, e.g. PIC 9(3)E+99.
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  str                     PIC X(3) VALUE "ab".
+       01  num-edited              PIC 99.99 VALUE "01.00".
+       01  leading-zeroes          PIC 9(5) VALUE 5.
+       01  decimal-num             PIC 99V999 PACKED-DECIMAL VALUE 0.12.
+       01  signed-decimal-num      PIC S999 COMP-X VALUE -1.
+       01  comp-5-item             PIC 9(10) COMP-5 VALUE 5.
+       01  index-item              INDEX.
+       01  float-short-item        FLOAT-SHORT VALUE 100.
+       01  float-long-item         FLOAT-LONG VALUE 123.0E-10.
+       01  just-item               PIC X(10) JUST.
+       01  integer-with-p          PIC 999PPP VALUE 10000.
+       01  decimal-with-p          PIC VPP99 VALUE 0.0004.
+
+       01  out                     PIC X(300).
+
+       PROCEDURE DIVISION.
+           XML GENERATE out FROM str
+           IF out <> '<str>ab</str>'
+               DISPLAY "Failed 1: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM num-edited
+           IF out <> '<num-edited>01.00</num-edited>'
+               DISPLAY "Failed 2: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM leading-zeroes
+           IF out <> '<leading-zeroes>5</leading-zeroes>'
+               DISPLAY "Failed 3: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM decimal-num
+           IF out <> '<decimal-num>0.120</decimal-num>'
+               DISPLAY "Failed 4: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM signed-decimal-num
+           IF out <> '<signed-decimal-num>-1</signed-decimal-num>'
+               DISPLAY "Failed 5: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM comp-5-item
+           IF out <> '<comp-5-item>5</comp-5-item>'
+               DISPLAY "Failed 6: " FUNCTION TRIM (out)
+           END-IF
+
+           SET index-item TO 500
+           XML GENERATE out FROM index-item
+           IF out <> '<index-item>500</index-item>'
+               DISPLAY "Failed 7: " FUNCTION TRIM (out)
+           END-IF
+
+           *> XML GENERATE out FROM float-short-item
+           *> IF out <> '<float-short-item>1E+02</float-short-item>'
+           *>     DISPLAY "Failed 8: " FUNCTION TRIM (out)
+           *> END-IF
+
+           *> XML GENERATE out FROM float-long-item
+           *> IF out <> '<float-long-item>123E-10</float-long-item>'
+           *>     DISPLAY "Failed 9: " FUNCTION TRIM (out)
+           *> END-IF
+
+           MOVE "blah " TO just-item
+           XML GENERATE out FROM just-item
+           IF out <> '<just-item>blah </just-item>'
+               DISPLAY "Failed 10: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM integer-with-p
+           IF out <> '<integer-with-p>10000</integer-with-p>'
+               DISPLAY "Failed 11: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM decimal-with-p
+           IF out <> '<decimal-with-p>0.0004</decimal-with-p>'
+               DISPLAY "Failed 12: " FUNCTION TRIM (out)
+           END-IF
+           .
+])
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML DPC-IN-DATA directive])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+AT_DATA([prog.cob], [
+      $SET DPC-IN-DATA "JSON"
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  num PIC 9V9 VALUE 1,1.
+       01  out PIC X(100).
+
+       PROCEDURE DIVISION.
+           XML GENERATE out FROM num
+           IF out <> '<num>1.1</num>'
+              DISPLAY "Failed: " FUNCTION TRIM (out).
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML dpc-in-data config option])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  num PIC 9V9 VALUE 1,1.
+       01  out PIC X(100).
+
+       PROCEDURE DIVISION.
+           XML GENERATE out FROM num
+           DISPLAY FUNCTION TRIM(out)
+           .
+])
+
+AT_CHECK([$COMPILE -fdpc-in-data=none prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[<num>1.1</num>
+])
+AT_CHECK([$COMPILE -fdpc-in-data=xml prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[<num>1,1</num>
+])
+AT_CHECK([$COMPILE  -fdpc-in-data=json prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[<num>1.1</num>
+])
+AT_CHECK([$COMPILE  -fdpc-in-data=all prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[<num>1,1</num>
+])
+AT_CLEANUP
+
+
+AT_SETUP([XML GENERATE PICTURE P])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_XML2" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-999PPP               PIC 999PPP VALUE 123000.
+       01  WS-PPP999               PIC PPP999 VALUE 0.000123.
+
+       01  out                     PIC X(300).
+
+       PROCEDURE DIVISION.
+           XML GENERATE out FROM WS-999PPP
+           IF out <> '<WS-999PPP>123000</WS-999PPP>'
+               DISPLAY "Failed 1: " FUNCTION TRIM (out)
+           END-IF
+
+           XML GENERATE out FROM WS-PPP999
+           IF out <> '<WS-PPP999>0.000123</WS-PPP999>'
+               DISPLAY "Failed 2: " FUNCTION TRIM (out)
+           END-IF
+           .
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML register data])
+AT_KEYWORDS([extensions XML-CODE XML-EVENT])
+
+# ensure that we have the data as other compilers
+
+AT_DATA([prog.cob], [
+       PROGRAM-ID. prog.
+       PROCEDURE DIVISION.
+           DISPLAY 'initial: ' XML-CODE ' - "' XML-EVENT '"'.
+           MOVE 5           TO XML-CODE
+           MOVE 'Test'      TO XML-EVENT
+           DISPLAY 'end    : ' XML-CODE ' - "' XML-EVENT '"'.
+           GOBACK.
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[initial: +000000000 - "                              "
+end    : +000000005 - "Test                          "
+], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML register data after use])
+AT_KEYWORDS([extensions XML-CODE XML-EVENT PARSE])
+
+AT_DATA([prog.cob],[
+       PROGRAM-ID. prog.
+       DATA      DIVISION.
+       WORKING-STORAGE SECTION.
+       77  empty-xml PIC X(8) VALUE '<empty/>'.
+       PROCEDURE DIVISION.
+       MAIN.
+           XML PARSE empty-xml
+               PROCESSING PROCEDURE PROC.
+           DISPLAY 'after  : ' XML-CODE ' - "' XML-EVENT '"'.
+           MOVE 5           TO XML-CODE
+           MOVE 'Test'      TO XML-EVENT
+           DISPLAY 'end    : ' XML-CODE ' - "' XML-EVENT '"'.
+           GOBACK.
+       PROC.
+           DISPLAY 'proc   : ' XML-CODE ' - "' XML-EVENT '"'.
+])
+
+AT_CHECK([$COMPILE -w prog.cob], [0], [], [])
+AT_CHECK([$COMPILE -w -fno-xml-parse-xmlss prog.cob -o compat], [0], [], [])
+
+AT_CHECK([test "$COB_HAS_XML2" = "yes"], [0], [], [],
+# Previous test "failed" -> no XML runtime
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[proc   : +000000600 - "EXCEPTION                     "
+after  : +000000600 - "EXCEPTION                     "
+end    : +000000005 - "Test                          "
+],
+[libcob: prog.cob:8: warning: runtime is not configured to support XML
+]),
+# Previous test "passed" -> libxml2 available
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[proc   : +000000000 - "START-OF-DOCUMENT             "
+proc   : +000000000 - "START-OF-ELEMENT              "
+proc   : +000000000 - "END-OF-ELEMENT                "
+proc   : +000000000 - "END-OF-INPUT                  "
+proc   : +000000000 - "END-OF-DOCUMENT               "
+after  : +000000000 - "END-OF-DOCUMENT               "
+end    : +000000005 - "Test                          "
+], [])
+AT_CHECK([$COBCRUN_DIRECT ./compat], [0],
+[proc   : +000000000 - "START-OF-DOCUMENT             "
+proc   : +000000000 - "START-OF-ELEMENT              "
+proc   : +000000000 - "END-OF-ELEMENT                "
+proc   : +000000000 - "END-OF-INPUT                  "
+proc   : +000000000 - "END-OF-DOCUMENT               "
+after  : +000000000 - "END-OF-DOCUMENT               "
+end    : +000000005 - "Test                          "
+], [])
+)
+
+AT_CLEANUP
+
+
+AT_SETUP([XML PARSE abort])
+AT_KEYWORDS([extensions XML-CODE XML-EVENT PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+
+AT_DATA([prog.cob],[
+       PROGRAM-ID. prog.
+       DATA      DIVISION.
+       WORKING-STORAGE SECTION.
+       77  empty-xml PIC X(8) VALUE '<empty/>'.
+       PROCEDURE DIVISION.
+       MAIN.
+           XML PARSE empty-xml
+               PROCESSING PROCEDURE PROC
+             ON EXCEPTION
+               DISPLAY 'XML processing aborted, XML-CODE = ' XML-CODE
+               GOBACK.
+           DISPLAY 'Unreachable'.
+           GOBACK.
+       PROC.
+           DISPLAY 'proc   : ' XML-CODE ' - "' XML-EVENT '"'.
+           MOVE -1 TO XML-CODE.
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [proc   : +000000000 - "START-OF-DOCUMENT             "
+XML processing aborted, XML-CODE = -000000001
+], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML register data after failure])
+AT_KEYWORDS([extensions XML-CODE XML-EVENT PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+AT_DATA([prog.cob], [
+       PROGRAM-ID. prog.
+       DATA      DIVISION.
+       WORKING-STORAGE SECTION.
+       77  invalid-xml PIC X(4) VALUE '</>'.
+       PROCEDURE DIVISION.
+       MAIN.
+           XML PARSE invalid-xml
+               PROCESSING PROCEDURE PROC
+             ON EXCEPTION
+               DISPLAY 'XML PARSE aborted'
+           .
+           DISPLAY 'after  : ' XML-CODE ' - "' XML-EVENT '"'.
+           GOBACK.
+       PROC.
+           DISPLAY 'proc   : ' XML-CODE ' - "' XML-EVENT '"'.
+           IF XML-EVENT = 'EXCEPTION' THEN DISPLAY XML-TEXT.
+])
+
+AT_CHECK([$COMPILE prog.cob])
+
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[proc   : +000000000 - "START-OF-DOCUMENT             "
+proc   : +000786432 - "EXCEPTION                     "
+unhandled internal XML non-recoverable error (68): StartTag: invalid element name
+XML PARSE aborted
+after  : +000786432 - "EXCEPTION                     "
+],
+[libcob: prog.cob:8: warning: XML PARSE non-recoverable error (68): StartTag: invalid element name
+])
+
+AT_CLEANUP
+
+AT_SETUP([XML PARSE <?xml?> declaration])
+AT_KEYWORDS([extensions XML-CODE XML-EVENT PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+
+AT_DATA([prog.cob], [
+       PROGRAM-ID. prog.
+       DATA      DIVISION.
+       WORKING-STORAGE SECTION.
+       77  empty-xml PIC X(29) VALUE '<?xml version="1.0"?><empty/>'.
+       PROCEDURE DIVISION.
+       MAIN.
+           XML PARSE empty-xml
+               PROCESSING PROCEDURE PROC
+             ON EXCEPTION
+               DISPLAY 'XML processing aborted, XML-CODE = ' XML-CODE
+               GOBACK.
+           Display 'XML document successfully parsed.'
+           GOBACK.
+       PROC.
+           DISPLAY 'proc   : ' XML-CODE ' - "' XML-EVENT '"'.
+])
+
+AT_CHECK([$COMPILE prog.cob])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[proc   : +000000000 - "START-OF-DOCUMENT             "
+proc   : +000000000 - "VERSION-INFORMATION           "
+proc   : +000000000 - "START-OF-ELEMENT              "
+proc   : +000000000 - "END-OF-ELEMENT                "
+proc   : +000000000 - "END-OF-INPUT                  "
+proc   : +000000000 - "END-OF-DOCUMENT               "
+XML document successfully parsed.
+])
+AT_CLEANUP
+
+
+AT_SETUP([XML PARSE])
+AT_KEYWORDS([extensions PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+AT_DATA([prog.cob], [
+       Identification division.
+       PROGRAM-ID. IBMXML.
+       Data division.
+       Working-storage section.
+      ******************************************************************
+      * XML document data, encoded as initial values of data items.    *
+      ******************************************************************
+       01  xml-document.
+         02 pic x(10) value '<sandwich>'.
+         02 pic x(28) value '<bread type="baker''s best"/>'.
+         02 pic x(25) value '<meat>Ham + turkey</meat>'.
+         02 pic x(34) value '<filling>Cheese, lettuce, tomato, '.
+         02 pic x(32) value 'and that''s all, Folks!</filling>'.
+         02 pic x(28) value '<listprice>$4.99</listprice>'.
+         02 pic x(25) value '<discount>0.10</discount>'.
+         02 pic x(31) value '</sandwich>'.
+       Procedure division.
+        Mainline section.
+           XML parse xml-document
+               processing procedure XML-handler
+             ON EXCEPTION
+               Display 'XML processing error, XML-Code=' XML-Code '.'
+               Move 16 to return-code
+             Goback
+           End-XML
+           Display 'XML document successfully parsed.'
+           Move 0 to return-code
+           Goback.
+        XML-handler section.
+           display 'event: ' xml-event ', text: {' xml-text '}'.
+])
+
+AT_CHECK([$COMPILE prog.cob])
+
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[event: START-OF-DOCUMENT             , text: {}
+event: START-OF-ELEMENT              , text: {sandwich}
+event: START-OF-ELEMENT              , text: {bread}
+event: ATTRIBUTE-NAME                , text: {type}
+event: ATTRIBUTE-CHARACTERS          , text: {baker's best}
+event: END-OF-ELEMENT                , text: {bread}
+event: START-OF-ELEMENT              , text: {meat}
+event: CONTENT-CHARACTERS            , text: {Ham + turkey}
+event: END-OF-ELEMENT                , text: {meat}
+event: START-OF-ELEMENT              , text: {filling}
+event: CONTENT-CHARACTERS            , text: {Cheese, lettuce, tomato, and that's all, Folks!}
+event: END-OF-ELEMENT                , text: {filling}
+event: START-OF-ELEMENT              , text: {listprice}
+event: CONTENT-CHARACTERS            , text: {$4.99}
+event: END-OF-ELEMENT                , text: {listprice}
+event: START-OF-ELEMENT              , text: {discount}
+event: CONTENT-CHARACTERS            , text: {0.10}
+event: END-OF-ELEMENT                , text: {discount}
+event: END-OF-ELEMENT                , text: {sandwich}
+event: END-OF-INPUT                  , text: {}
+event: END-OF-DOCUMENT               , text: {}
+XML document successfully parsed.
+])
+
+AT_CLEANUP
+
+
+AT_SETUP([XML PARSE push parser])
+AT_KEYWORDS([extensions PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+AT_DATA([prog.cob], [[
+       Identification division.
+       PROGRAM-ID. IBMXML.
+       Data division.
+       Working-storage section.
+      ******************************************************************
+      * Sample data definitions for processing numeric XML content.    *
+      ******************************************************************
+       77  element-depth comp pic s9(4).
+       77  countd comp pic s9(4).
+       77  discount computational pic 9v99 value 0.
+       77  display-price pic $$9.99.
+       77  filling pic x(4095).
+       77  list-price computational pic 9v99 value 0.
+       77  ofr-ed pic x(9) justified.
+       77  ofr-ed-1 redefines ofr-ed pic 999999.99.
+      ******************************************************************
+      * XML document data, encoded as initial values of data items.    *
+      ******************************************************************
+         1 xml-document-data.
+          2 pic x(39) value '<?xml version="1.0" encoding="US-ASCII"'.
+          2 pic x(19) value ' standalone="yes"?>'.
+          2 pic x(39) value '<!--This document is just an example-->'.
+          2 pic x(10) value '<sandwich>'.
+          2 pic x(33) value '<bread type="baker&apos;s best"/>'.
+          2 pic x(36) value '<?spread We''ll use real mayonnaise?>'.
+          2 pic x(29) value '<meat>Ham &amp; turkey</meat>'.
+          2 pic x(34) value '<filling>Cheese, lettuce, tomato, '.
+          2 pic x(32) value 'and that''s all, Folks!</filling>'.
+          2 pic x(25) value '<![CDATA[We should add a '.
+          2 pic x(20) value '<relish> element!]]>'.
+          2 pic x(28) value '<listprice>$4.99</listprice>'.
+          2 pic x(25) value '<discount>0.10</discount>'.
+          2 pic x(31) value '</sandwich>'.
+      ******************************************************************
+      * XML document, represented as fixed-length records.             *
+      ******************************************************************
+       01  xml-document redefines xml-document-data.
+           05 xml-segment pic x(40) occurs 10 times.
+       01  xml-segment-no comp pic s9(4).
+       01  content-buffer pic x(100).
+       01  current-element-stack.
+           05 current-element pic x(40) occurs 10 times.
+       Procedure division.
+        Mainline section.
+           display 'len: ' length of xml-document-data.
+           Move 1 to xml-segment-no
+           Display 'Initial segment {' xml-segment(xml-segment-no) '}'
+           XML parse xml-segment (xml-segment-no)
+               processing procedure XML-handler
+             ON EXCEPTION
+               Display 'XML processing error, XML-Code=' XML-Code '.'
+               Move 16 to return-code
+             Goback
+           End-XML
+      ******************************************************************
+      * Process the transformed content and calculate promo price.     *
+      ******************************************************************
+           Display 'XML document successfully parsed.'
+           Display '-----+++++***** Using information from XML '
+               '*****+++++-----'
+           Move list-price to Display-price
+           Display ' Sandwich list price: ' Display-price
+           Compute Display-price = list-price * (1 - discount)
+           Display ' Promotional price: ' Display-price
+           Display ' Get one today!'
+           Move 0 to return-code
+           Goback.
+        XML-handler section.
+           display 'event: ' xml-event ', text: {' xml-text '}'.
+           Evaluate XML-Event
+      * ==> Order XML events most frequent first
+             When 'START-OF-ELEMENT'
+               Add 1 to element-depth
+               Move XML-Text to current-element(element-depth)
+             When 'CONTENT-CHARACTERS'
+      * ==> In general, a split can occur for any element or attribute
+      * ==> data, but in this sample, it only occurs for "filling"...
+      * With GnuCOBOL, there is no split because filling is too short
+               DISPLAY 'XML-INFORMATION: ' XML-INFORMATION
+               If xml-information = 2 and
+                   current-element(element-depth) not = 'filling'
+                 Display 'Unexpected split in content for element '
+                     current-element(element-depth)
+                 Move -1 to xml-code
+               End-if
+      * ==> Transform XML content to operational COBOL data item...
+               Evaluate current-element(element-depth)
+                 When 'filling'
+      * ==> After reassembling separate pieces of character content...
+                   String xml-text delimited by size into
+                       content-buffer with pointer countd
+                     On overflow
+                       Display 'content buffer ('
+                           length of content-buffer
+                           ' bytes) is too small'
+                       Move -1 to xml-code
+                   End-string
+                   Evaluate xml-information
+                     When 2
+                       Display '  Character data for element "filling" '
+                           'is incomplete.'
+                       Display '  The partial data was buffered for '
+                           'content assembly.'
+                     When 1
+                       subtract 1 from countd
+                       move content-buffer(1:countd) to filling
+                       Display '  Element "filling" data (' countd
+                           ' bytes) is now complete:'
+                       Display '  {' filling(1:countd) '}'
+                   End-evaluate
+                 When 'listprice'
+      * ==> Using function NUMVAL-C...
+                   Move XML-Text to content-buffer
+                   Compute list-price =
+                       function numval-c(content-buffer)
+                 When 'discount'
+      * ==> Using de-editing of a numeric edited item...
+                   Move XML-Text to ofr-ed
+                   Move ofr-ed-1 to discount
+               End-evaluate
+             When 'END-OF-ELEMENT'
+               Subtract 1 from element-depth
+             When 'START-OF-DOCUMENT'
+               Move 0 to element-depth
+               Move 1 to countd
+             When 'EXCEPTION'
+               Compute countd = function length (XML-Text)
+               Display 'Exception ' XML-Code ' at offset ' countd '.'
+             When 'END-OF-INPUT'
+               if xml-segment-no < 10
+                   Add 1 to xml-segment-no
+                   Display 'segment-num: ' xml-segment-no
+                   Display
+                   'Next segment: {' xml-segment(xml-segment-no) '}'
+                   Move 1 to xml-code
+              end-if
+             When other
+               continue
+           End-evaluate.
+]])
+
+AT_CHECK([$COMPILE prog.cob])
+
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[[len: 400
+Initial segment {<?xml version="1.0" encoding="US-ASCII" }
+event: END-OF-INPUT                  , text: {}
+segment-num: +0002
+Next segment: {standalone="yes"?><!--This document is j}
+event: START-OF-DOCUMENT             , text: {}
+event: VERSION-INFORMATION           , text: {1.0}
+event: ENCODING-DECLARATION          , text: {US-ASCII}
+event: STANDALONE-DECLARATION        , text: {yes}
+event: END-OF-INPUT                  , text: {}
+segment-num: +0003
+Next segment: {ust an example--><sandwich><bread type="}
+event: COMMENT                       , text: {This document is just an example}
+event: START-OF-ELEMENT              , text: {sandwich}
+event: END-OF-INPUT                  , text: {}
+segment-num: +0004
+Next segment: {baker&apos;s best"/><?spread We'll use r}
+event: START-OF-ELEMENT              , text: {bread}
+event: ATTRIBUTE-NAME                , text: {type}
+event: ATTRIBUTE-CHARACTERS          , text: {baker's best}
+event: END-OF-ELEMENT                , text: {bread}
+event: END-OF-INPUT                  , text: {}
+segment-num: +0005
+Next segment: {eal mayonnaise?><meat>Ham &amp; turkey</}
+event: PROCESSING-INSTRUCTION-TARGET , text: {spread}
+event: PROCESSING-INSTRUCTION-DATA   , text: {We'll use real mayonnaise}
+event: START-OF-ELEMENT              , text: {meat}
+event: CONTENT-CHARACTERS            , text: {Ham & turkey}
+XML-INFORMATION: +000000001
+event: END-OF-INPUT                  , text: {}
+segment-num: +0006
+Next segment: {meat><filling>Cheese, lettuce, tomato, a}
+event: END-OF-ELEMENT                , text: {meat}
+event: START-OF-ELEMENT              , text: {filling}
+event: END-OF-INPUT                  , text: {}
+segment-num: +0007
+Next segment: {nd that's all, Folks!</filling><![CDATA[}
+event: CONTENT-CHARACTERS            , text: {Cheese, lettuce, tomato, and that's all, Folks!}
+XML-INFORMATION: +000000001
+  Element "filling" data (+0047 bytes) is now complete:
+  {Cheese, lettuce, tomato, and that's all, Folks!}
+event: END-OF-ELEMENT                , text: {filling}
+event: END-OF-INPUT                  , text: {}
+segment-num: +0008
+Next segment: {We should add a <relish> element!]]><lis}
+event: START-OF-CDATA-SECTION        , text: {}
+event: CONTENT-CHARACTERS            , text: {We should add a <relish> element!}
+XML-INFORMATION: +000000001
+event: END-OF-CDATA-SECTION          , text: {}
+event: END-OF-INPUT                  , text: {}
+segment-num: +0009
+Next segment: {tprice>$4.99</listprice><discount>0.10</}
+event: START-OF-ELEMENT              , text: {listprice}
+event: CONTENT-CHARACTERS            , text: {$4.99}
+XML-INFORMATION: +000000001
+event: END-OF-ELEMENT                , text: {listprice}
+event: START-OF-ELEMENT              , text: {discount}
+event: CONTENT-CHARACTERS            , text: {0.10}
+XML-INFORMATION: +000000001
+event: END-OF-INPUT                  , text: {}
+segment-num: +0010
+Next segment: {discount></sandwich>                    }
+event: END-OF-ELEMENT                , text: {discount}
+event: END-OF-ELEMENT                , text: {sandwich}
+event: END-OF-INPUT                  , text: {}
+event: END-OF-DOCUMENT               , text: {}
+XML document successfully parsed.
+-----+++++***** Using information from XML *****+++++-----
+ Sandwich list price:  $4.99
+ Promotional price:  $4.49
+ Get one today!
+]])
+
+AT_CLEANUP
+
+
+AT_SETUP([XML PARSE long text])
+AT_KEYWORDS([extensions PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+AT_DATA([prog.cob], [[
+       Identification division.
+       PROGRAM-ID. IBMXML.
+       Data division.
+       Working-storage section.
+      ******************************************************************
+      * XML document data, encoded as initial values of data items.    *
+      ******************************************************************
+       01 xml-start-tag pic x(20) value '<lorem>'.
+       01 lorem-ipsum.
+         02 pic x(28) value 'Lorem ipsum dolor sit amet, '.
+         02 pic x(28) value 'consectetur adipiscing elit.'.
+       01 xml-cdata.
+         02 pic x(33) value '<![CDATA[Quousque tandem abutere '.
+         02 pic x(30) value 'Catilina patientia nostra ?]]>'.
+       01 xml-end-tag pic x(20) value '</lorem>'.
+       01 xml-buffer pic x(63).
+       01 nb-buffer pic 99 value 0.
+       Procedure division.
+        Mainline section.
+           Move xml-start-tag to xml-buffer.
+           XML parse xml-buffer
+               processing procedure XML-handler
+             ON EXCEPTION
+               Display 'XML processing error, XML-Code=' XML-Code '.'
+               Move 16 to return-code
+             Goback
+           End-XML
+           Display 'XML document successfully parsed.'
+           Move 0 to return-code
+           Goback.
+        XML-handler section.
+           Display 'event: ' xml-event ', info: ' xml-information
+               ', text: {' xml-text '}'.
+           Evaluate XML-Event
+             When 'END-OF-INPUT'
+               Add 1 to nb-buffer
+               if nb-buffer = 6
+                   Move 1 to xml-code
+                   Move xml-cdata to xml-buffer
+               else if nb-buffer = 12
+                   Move 1 to xml-code
+                   Move xml-end-tag to xml-buffer
+               else if nb-buffer < 12
+                   Move 1 to xml-code
+                   Move lorem-ipsum to xml-buffer
+               end-if
+             When other
+               continue
+           End-evaluate.
+]])
+
+AT_CHECK([$COMPILE prog.cob])
+
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[event: START-OF-DOCUMENT             , info: +000000000, text: {}
+event: START-OF-ELEMENT              , info: +000000000, text: {lorem}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: CONTENT-CHARACTERS            , info: +000000002, text: {                                                        Lorem ipsum dolor sit amet, consectetur adipiscing elit.       Lorem ipsum dolor sit amet, consectetur adipiscing elit.       Lorem ipsum dolor sit amet, consectetur adipiscing elit.       Lorem ipsum dolor sit amet, consectetur adipiscing elit.       }
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: CONTENT-CHARACTERS            , info: +000000001, text: {Lorem ipsum dolor sit amet, consectetur adipiscing elit.       }
+event: START-OF-CDATA-SECTION        , info: +000000000, text: {}
+event: CONTENT-CHARACTERS            , info: +000000001, text: {Quousque tandem abutere Catilina patientia nostra ?}
+event: END-OF-CDATA-SECTION          , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: CONTENT-CHARACTERS            , info: +000000002, text: {Lorem ipsum dolor sit amet, consectetur adipiscing elit.       Lorem ipsum dolor sit amet, consectetur adipiscing elit.       Lorem ipsum dolor sit amet, consectetur adipiscing elit.       Lorem ipsum dolor sit amet, consectetur adipiscing elit.       Lorem ipsum dolor sit amet, consectetur adipiscing elit.       }
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: CONTENT-CHARACTERS            , info: +000000001, text: {}
+event: END-OF-ELEMENT                , info: +000000000, text: {lorem}
+event: END-OF-INPUT                  , info: +000000000, text: {}
+event: END-OF-DOCUMENT               , info: +000000000, text: {}
+XML document successfully parsed.
+])
+
+AT_CLEANUP
+
+
+AT_SETUP([XML PARSE namespaces])
+AT_KEYWORDS([extensions PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+
+AT_DATA([prog.cob],[
+       Identification division.
+       PROGRAM-ID. IBMXML.
+       Data division.
+       Working-storage section.
+      ******************************************************************
+      * XML document data, encoded as initial values of data items.    *
+      ******************************************************************
+       01  xml-document.
+         02 pic x(35) value '<section xmlns="http://example.com"'.
+         02 pic x(29) value ' xmlns:bk="urn:loc.gov:books"'.
+         02 pic x(35) value ' xmlns:pi="urn:personalInformation"'.
+         02 pic x(37) value ' xmlns:isbn="urn:ISBN:0-395-36341-6">'.
+         02 pic x(33) value '<title>Book-Signing Event</title>'.
+         02 pic x(9) value '<signing>'.
+         02 pic x(24) value '<bk:author pi:title="Mr"'.
+         02 pic x(21) value ' pi:name="Jim Ross"/>'.
+         02 pic x(34) value '<book bk:title="COBOL for dummies"'.
+         02 pic x(27) value ' isbn:number="0426070806"/>'.
+         02 pic x(18) value '<comment xmlns="">'.
+         02 pic x(19) value 'What a great issue!'.
+         02 pic x(10) value '</comment>'.
+         02 pic x(10) value '</signing>'.
+         02 pic x(10) value '</section>'.
+       Procedure division.
+        Mainline section.
+           XML parse xml-document
+               processing procedure XML-handler
+             ON EXCEPTION
+               Display 'XML processing error, XML-Code=' XML-Code '.'
+               Move 16 to return-code
+             Goback
+           End-XML
+           Display 'XML document successfully parsed.'
+           Move 0 to return-code
+           Goback.
+        XML-handler section.
+           display 'event: ' xml-event ', text: {' xml-text '}'
+            ', prefix: {' xml-namespace-prefix '}, namespace: {' 
+            xml-namespace '}'.
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [event: START-OF-DOCUMENT             , text: {}, prefix: {}, namespace: {}
+event: START-OF-ELEMENT              , text: {section}, prefix: {}, namespace: {http://example.com}
+event: NAMESPACE-DECLARATION         , text: {}, prefix: {}, namespace: {http://example.com}
+event: NAMESPACE-DECLARATION         , text: {}, prefix: {bk}, namespace: {urn:loc.gov:books}
+event: NAMESPACE-DECLARATION         , text: {}, prefix: {pi}, namespace: {urn:personalInformation}
+event: NAMESPACE-DECLARATION         , text: {}, prefix: {isbn}, namespace: {urn:ISBN:0-395-36341-6}
+event: START-OF-ELEMENT              , text: {title}, prefix: {}, namespace: {http://example.com}
+event: CONTENT-CHARACTERS            , text: {Book-Signing Event}, prefix: {}, namespace: {}
+event: END-OF-ELEMENT                , text: {title}, prefix: {}, namespace: {http://example.com}
+event: START-OF-ELEMENT              , text: {signing}, prefix: {}, namespace: {http://example.com}
+event: START-OF-ELEMENT              , text: {author}, prefix: {bk}, namespace: {urn:loc.gov:books}
+event: ATTRIBUTE-NAME                , text: {title}, prefix: {pi}, namespace: {urn:personalInformation}
+event: ATTRIBUTE-CHARACTERS          , text: {Mr}, prefix: {}, namespace: {}
+event: ATTRIBUTE-NAME                , text: {name}, prefix: {pi}, namespace: {urn:personalInformation}
+event: ATTRIBUTE-CHARACTERS          , text: {Jim Ross}, prefix: {}, namespace: {}
+event: END-OF-ELEMENT                , text: {author}, prefix: {bk}, namespace: {urn:loc.gov:books}
+event: START-OF-ELEMENT              , text: {book}, prefix: {}, namespace: {http://example.com}
+event: ATTRIBUTE-NAME                , text: {title}, prefix: {bk}, namespace: {urn:loc.gov:books}
+event: ATTRIBUTE-CHARACTERS          , text: {COBOL for dummies}, prefix: {}, namespace: {}
+event: ATTRIBUTE-NAME                , text: {number}, prefix: {isbn}, namespace: {urn:ISBN:0-395-36341-6}
+event: ATTRIBUTE-CHARACTERS          , text: {0426070806}, prefix: {}, namespace: {}
+event: END-OF-ELEMENT                , text: {book}, prefix: {}, namespace: {http://example.com}
+event: START-OF-ELEMENT              , text: {comment}, prefix: {}, namespace: {}
+event: NAMESPACE-DECLARATION         , text: {}, prefix: {}, namespace: {}
+event: CONTENT-CHARACTERS            , text: {What a great issue!}, prefix: {}, namespace: {}
+event: END-OF-ELEMENT                , text: {comment}, prefix: {}, namespace: {}
+event: END-OF-ELEMENT                , text: {signing}, prefix: {}, namespace: {http://example.com}
+event: END-OF-ELEMENT                , text: {section}, prefix: {}, namespace: {http://example.com}
+event: END-OF-INPUT                  , text: {}, prefix: {}, namespace: {}
+event: END-OF-DOCUMENT               , text: {}, prefix: {}, namespace: {}
+XML document successfully parsed.
+], [])
+AT_CLEANUP
+
+
+AT_SETUP([XML PARSE undeclared namespaces])
+AT_KEYWORDS([extensions PARSE])
+
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+AT_DATA([prog.cob], [
+       Identification division.
+         Program-id. XMLup.
+       Data division.
+        Working-storage section.
+         1 d.
+          2 pic x(40) value '<pfx0:root xmlns:pfx1="http://whatever">'.
+          2 pic x(19) value '<pfx1:localElName1>'.
+          2 pic x(20) value '<pfx2:localElName2/>'.
+          2 pic x(40) value '<pfx3:localElName3 pfx4:localAtName4="">'.
+          2 pic x(02) value 'c1'.
+          2 pic x(41) value '<pfx5:localElName5 pfx6:localAtName6=""/>'.
+          2 pic x(24) value 'c2</pfx3:localElName3>c3'.
+          2 pic x(32) value '</pfx1:localElName1></pfx0:root>'.
+       Procedure division.
+         main.
+           xml parse d processing procedure h
+           goback.
+         h.
+           display xml-event xml-code '|' xml-text '|'
+               xml-namespace-prefix '|'
+               xml-namespace '|'
+           if xml-event = 'EXCEPTION' and xml-code = 264192 or 264193
+             move 0 to xml-code
+           end-if
+           .
+       End program XMLup.
+])
+
+AT_CHECK([$COMPILE prog.cob])
+
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[START-OF-DOCUMENT             +000000000||||
+EXCEPTION                     +000264193|pfx0:root|||
+START-OF-ELEMENT              +000000000|root|pfx0||
+NAMESPACE-DECLARATION         +000000000||pfx1|http://whatever|
+START-OF-ELEMENT              +000000000|localElName1|pfx1|http://whatever|
+EXCEPTION                     +000264193|pfx2:localElName2|||
+START-OF-ELEMENT              +000000000|localElName2|pfx2||
+END-OF-ELEMENT                +000000000|localElName2|pfx2||
+EXCEPTION                     +000264192|pfx4:localAtName4|||
+EXCEPTION                     +000264193|pfx3:localElName3|||
+START-OF-ELEMENT              +000000000|localElName3|pfx3||
+ATTRIBUTE-NAME                +000000000|localAtName4|pfx4||
+ATTRIBUTE-CHARACTERS          +000000000||||
+CONTENT-CHARACTERS            +000000000|c1|||
+EXCEPTION                     +000264192|pfx6:localAtName6|||
+EXCEPTION                     +000264193|pfx5:localElName5|||
+START-OF-ELEMENT              +000000000|localElName5|pfx5||
+ATTRIBUTE-NAME                +000000000|localAtName6|pfx6||
+ATTRIBUTE-CHARACTERS          +000000000||||
+END-OF-ELEMENT                +000000000|localElName5|pfx5||
+CONTENT-CHARACTERS            +000000000|c2|||
+END-OF-ELEMENT                +000000000|localElName3|pfx3||
+CONTENT-CHARACTERS            +000000000|c3|||
+END-OF-ELEMENT                +000000000|localElName1|pfx1|http://whatever|
+END-OF-ELEMENT                +000000000|root|pfx0||
+END-OF-INPUT                  +000000000||||
+END-OF-DOCUMENT               +000000000||||
+],
+[libcob: prog.cob:17: warning: XML PARSE recoverable error (201): Namespace prefix pfx0 on root is not defined
+libcob: prog.cob:17: warning: XML PARSE recoverable error (201): Namespace prefix pfx2 on localElName2 is not defined
+libcob: prog.cob:17: warning: XML PARSE recoverable error (201): Namespace prefix pfx4 for localAtName4 on localElName3 is not defined
+libcob: prog.cob:17: warning: XML PARSE recoverable error (201): Namespace prefix pfx3 on localElName3 is not defined
+libcob: prog.cob:17: warning: XML PARSE recoverable error (201): Namespace prefix pfx6 for localAtName6 on localElName5 is not defined
+libcob: prog.cob:17: warning: XML PARSE recoverable error (201): Namespace prefix pfx5 on localElName5 is not defined
+])
+
+AT_CLEANUP
+
+
+AT_SETUP([XML-TEXT reference modifier])
+# promoted on 2026-04-20T15:51
+AT_KEYWORDS([extensions PARSE XML-TEXT])
+AT_SKIP_IF([[test "$COB_HAS_XML2" = "no"]])
+AT_DATA([prog.cob],[
+       Identification division.
+       PROGRAM-ID. IBMXML.
+       Data division.
+       Working-storage section.
+       01  xml-document.
+         02 pic x(14) value '<lorem-ipsum/>'.
+       Procedure division.
+        Mainline section.
+           XML parse xml-document
+               processing procedure XML-handler.
+           Goback.
+        XML-handler section.
+           if xml-event = 'START-OF-ELEMENT'
+             display xml-text (7:5)
+           end-if.
+])
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [ipsum
+], [])
+AT_CLEANUP
+
+
+#
+## JSON
+#
+
+
+AT_SETUP([JSON GENERATE general])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION       DIVISION.
+       PROGRAM-ID.          prog.
+
+       DATA                 DIVISION.
+       WORKING-STORAGE      SECTION.
+       01  out              PIC X(200).
+       01  rec.
+           03  a            PIC X(3) VALUE 'A'.
+           03  b            PIC X(3) VALUE ALL 'B'.
+           03  c.
+               05  d        PIC X(3) VALUE SPACES.
+
+       PROCEDURE            DIVISION.
+           JSON GENERATE out
+               FROM rec
+               NAME OF a IS 'alpha', d IS 'ABCDEF'
+               SUPPRESS c
+           IF out <> '{"rec":{"alpha":"A","b":"BBB"}}'
+               DISPLAY 'Test 1 failed: ' FUNCTION TRIM (out)
+           END-IF
+           JSON GENERATE out
+               FROM rec
+               NAME OF a IS 'alpha', rec IS OMITTED
+               SUPPRESS c
+           IF out <> '{"alpha":"A","b":"BBB"}'
+               DISPLAY 'Test 2 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM d
+           IF out <> '{"d":" "}'
+               DISPLAY 'Test 3 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM c
+           IF out <> '{"c":{"d":" "}}'
+               DISPLAY 'Test 4 failed: ' FUNCTION TRIM (out)
+           END-IF
+
+           MOVE ALL QUOTES TO d
+           JSON GENERATE out FROM d
+           IF out <> '{"d":"\"\"\""}'
+               DISPLAY 'Test 5 failed: ' FUNCTION TRIM (out)
+           END-IF
+           .
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([JSON GENERATE SUPPRESS])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION       DIVISION.
+       PROGRAM-ID.          prog.
+
+       DATA                 DIVISION.
+       WORKING-STORAGE      SECTION.
+       01  a.
+           03  b            PIC X(3) VALUE SPACES.
+           03  c            PIC X(3) VALUE SPACES.
+
+       01  x.
+           03  y.
+               05  z        PIC X VALUE SPACE.
+
+       01  out              PIC X(100).
+
+       PROCEDURE            DIVISION.
+           JSON GENERATE out FROM a SUPPRESS b
+           IF out <> '{"a":{"c":" "}}'
+               DISPLAY 'Test 1 failed: ' out
+           END-IF
+
+           JSON GENERATE out FROM x SUPPRESS z
+           IF out <> '{"x":{}}'
+               DISPLAY 'Test 2 failed: ' out
+           END-IF
+           .
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([JSON GENERATE exceptions])
+AT_KEYWORDS([extensions JSON-CODE])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  normal-str PIC X(200).
+
+       01  valid-rec.
+           03  a PIC XX VALUE "aa".
+           03  b PIC XX VALUE "bb".
+       01  short-str PIC X(5).
+       01  json-len   PIC 99.
+
+       PROCEDURE DIVISION.
+           JSON GENERATE short-str FROM valid-rec
+               COUNT IN json-len
+           IF short-str <> '{"val'            *> "
+                   OR json-len <> 33
+                   OR JSON-CODE <> 1
+               DISPLAY "Failed 1: " short-str " " json-len " " JSON-CODE
+           END-IF
+
+           JSON GENERATE normal-str FROM valid-rec
+                ON EXCEPTION
+                    DISPLAY "Failed 2: EXCEPTION "
+                        FUNCTION TRIM (normal-str)
+                        " " JSON-CODE
+                    END-DISPLAY
+
+                NOT ON EXCEPTION
+                    IF JSON-CODE <> 0
+                        DISPLAY "Failed 2: NOT EXCEPTION "
+                            FUNCTION TRIM (normal-str)
+                            " " JSON-CODE
+                    END-IF
+           END-JSON
+
+           JSON GENERATE short-str FROM valid-rec
+                NOT EXCEPTION
+                    DISPLAY "Failed 3: NOT EXCEPTION "
+                        FUNCTION TRIM (normal-str)
+                        " " JSON-CODE
+                    END-DISPLAY
+
+                EXCEPTION
+                    IF JSON-CODE <> 1
+                        DISPLAY "Failed 3: ON EXCEPTION "
+                            FUNCTION TRIM (normal-str)
+                            " " JSON-CODE
+                    END-IF
+           END-JSON
+           .
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([JSON GENERATE record selection])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+# TO-DO: Add support for generating OCCURS items.
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  a.
+           03  b.
+               05 c1 PIC X(3) VALUE "abc".
+               05 c2 PIC 9(3) VALUE 0.
+           03  d REDEFINES b.
+               05  e PIC X(6).
+           03  f PIC X OCCURS 3 VALUE "f".
+
+       66  h RENAMES c1 THRU c2.
+
+       01  out PIC X(60).
+
+       PROCEDURE DIVISION.
+           *> JSON GENERATE out FROM a
+           *> IF out <> '<a><b><c1>abc</c1><c2>0</c2></b><f>f</f><f>f</f>'-
+           *>          '<f>f</f></a>'
+           *>    DISPLAY "Failed 1: " FUNCTION TRIM (out)
+           *> END-IF
+
+           JSON GENERATE out FROM d
+           IF out <> '{"d":{"e":"abc000"}}'
+               DISPLAY "Failed 2: " FUNCTION TRIM (out)
+           END-IF
+           .
+       END PROGRAM prog.
+])
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([JSON GENERATE trimming])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+# TO-DO: Add support for IBM/COBOL 2002 edited floating point (e.g. PIC 9(3)E+99).
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 all-data-checked.
+          02  str                     PIC X(3)         VALUE "ab".
+          02  num-edited              PIC 99.99        VALUE "01.00".
+          02  leading-zeroes          PIC 9(5)         VALUE 5.
+          02  decimal-nums.
+              03  decimal-num         PIC 99V999 PACKED-DECIMAL
+                                                       VALUE 0.12.
+              03  decimal-num-2       PIC 99V9         VALUE 0.1.
+          02  signed-decimal-num      PIC S999  COMP-X VALUE -1.
+          02  comp-5-item             PIC 9(10) COMP-5 VALUE 5.
+          02  index-item              INDEX.
+          02  just-item               PIC X(10) JUST.
+          02  integer-with-p          PIC 999PPP       VALUE 10000.
+          02  decimal-with-p          PIC VPP99        VALUE 0.0004.
+
+       01  float-short-item        FLOAT-SHORT VALUE 100.
+       01  float-long-item         FLOAT-LONG VALUE 123.0E-10.
+
+       01  out                     PIC X(300).
+
+       78  out-all                 VALUE
+           '{"all-data-checked":{"str":"ab","num-edited":"01.00",'-
+           '"leading-zeroes":5,"decimal-nums":{"decimal-num":0.120,'-
+           '"decimal-num-2":0.1},"signed-decimal-num":-1,'-
+           '"comp-5-item":5,"index-item":500,"just-item":"blah ",'-
+           '"integer-with-p":10000,"decimal-with-p":0.0004}}'.
+
+       PROCEDURE DIVISION.
+           JSON GENERATE out FROM str
+           IF out <> '{"str":"ab"}'
+               DISPLAY "Failed 1: " FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM num-edited
+           IF out <> '{"num-edited":"01.00"}'
+               DISPLAY "Failed 2: " FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM leading-zeroes
+           IF out <> '{"leading-zeroes":5}'
+               DISPLAY "Failed 3: " FUNCTION TRIM (out)
+           END-IF
+
+        >> IF CHECK-PERF IS DEFINED
+           PERFORM 2000000 TIMES
+        >> END-IF
+           JSON GENERATE out FROM decimal-nums
+        >> IF CHECK-PERF IS DEFINED
+           END-PERFORM
+        >> END-IF
+           IF out <> '{"decimal-nums":{"decimal-num":0.120,'-
+                     '"decimal-num-2":0.1}}'
+               DISPLAY "Failed 4: " FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM signed-decimal-num
+           IF out <> '{"signed-decimal-num":-1}'
+               DISPLAY "Failed 5: " FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM comp-5-item
+           IF out <> '{"comp-5-item":5}'
+               DISPLAY "Failed 6: " FUNCTION TRIM (out)
+           END-IF
+
+           SET index-item TO 500
+           JSON GENERATE out FROM index-item
+           IF out <> '{"index-item":500}'
+               DISPLAY "Failed 7: " FUNCTION TRIM (out)
+           END-IF
+
+           *> JSON GENERATE out FROM float-short-item
+           *> IF out <> '{"float-short-item":1E+02}'
+           *>     DISPLAY "Failed 8: " FUNCTION TRIM (out)
+           *> END-IF
+
+           *> JSON GENERATE out FROM float-long-item
+           *> IF out <> '{"float-long-item":123E-10}'
+           *>     DISPLAY "Failed 9: " FUNCTION TRIM (out)
+           *> END-IF
+
+           MOVE "blah " TO just-item
+           JSON GENERATE out FROM just-item
+           IF out <> '{"just-item":"blah "}'
+               DISPLAY "Failed 10: " FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM integer-with-p
+           IF out <> '{"integer-with-p":10000}'
+               DISPLAY "Failed 11: " FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM decimal-with-p
+           IF out <> '{"decimal-with-p":0.0004}'
+               DISPLAY "Failed 12: " FUNCTION TRIM (out)
+           END-IF
+
+        >> IF CHECK-PERF IS DEFINED
+           PERFORM 2000000 TIMES
+        >> END-IF
+           JSON GENERATE out FROM all-data-checked
+        >> IF CHECK-PERF IS DEFINED
+           END-PERFORM
+        >> END-IF
+           IF out <> out-all
+               DISPLAY "Failed 13: " FUNCTION TRIM (out)
+           END-IF
+           .
+])
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([JSON DPC-IN-DATA directive])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+AT_DATA([prog.cob], [
+      $SET DPC-IN-DATA "JSON"
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  num PIC 9V9 VALUE 1,1.
+       01  out PIC X(100).
+
+       PROCEDURE DIVISION.
+           JSON GENERATE out FROM num
+           IF out <> '{"num":1,1}'
+              DISPLAY "Failed: " FUNCTION TRIM (out).
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
+
+
+AT_SETUP([JSON dpc-in-data config option])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  num PIC 9V9 VALUE 1,1.
+       01  out PIC X(100).
+
+       PROCEDURE DIVISION.
+           JSON GENERATE out FROM num
+           DISPLAY FUNCTION TRIM(out)
+           .
+])
+
+AT_CHECK([$COMPILE -fdpc-in-data=none prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[{"num":1.1}
+])
+AT_CHECK([$COMPILE -fdpc-in-data=xml prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[{"num":1.1}
+])
+AT_CHECK([$COMPILE  -fdpc-in-data=json prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[{"num":1,1}
+])
+AT_CHECK([$COMPILE  -fdpc-in-data=all prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0],
+[{"num":1,1}
+])
+AT_CLEANUP
+
+
+AT_SETUP([JSON GENERATE PICTURE P])
+AT_KEYWORDS([extensions])
+
+AT_SKIP_IF([test "$COB_HAS_JSON" = "no"])
+
+
+AT_DATA([prog.cob], [
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. prog.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  WS-999PPP               PIC 999PPP VALUE 123000.
+       01  WS-PPP999               PIC PPP999 VALUE 0.000123.
+
+       01  out                     PIC X(300).
+
+       PROCEDURE DIVISION.
+           JSON GENERATE out FROM WS-999PPP
+           IF out <> '{"WS-999PPP":123000}'
+               DISPLAY "Failed 1: " FUNCTION TRIM (out)
+           END-IF
+
+           JSON GENERATE out FROM WS-PPP999
+           IF out <> '{"WS-PPP999":0.000123}'
+               DISPLAY "Failed 2: " FUNCTION TRIM (out)
+           END-IF
+           .
+])
+
+AT_CHECK([$COMPILE prog.cob], [0], [], [])
+AT_CHECK([$COBCRUN_DIRECT ./prog], [0], [], [])
+AT_CLEANUP
