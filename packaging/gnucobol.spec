@@ -32,3 +32,4 @@ the compiler and its runtime library.
 find %{buildroot} -type f -o -type l | sed 's#^%{buildroot}##' | sort > %{_builddir}/gnucobol-filelist
 
 %files -f %{_builddir}/gnucobol-filelist
+%license COPYING
