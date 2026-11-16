@@ -31,7 +31,7 @@ jobs:
           dnf -y install \
             gcc gcc-c++ make autoconf automake libtool \
             gettext-devel ncurses-devel gmp-devel \
-            pkgconf-pkg-config rpm-build rpmdevtools \
+            pkgconf-pkg-config rpm-build rpmdevtools git \
             tar gzip findutils sed grep coreutils
           dnf clean all
 
