@@ -41,11 +41,13 @@ jobs:
           ref: main
 
       - name: Build and test RPM
+        if: hashFiles('upstream/configure.ac') != ''
         run: |
           chmod +x scripts/build-rpm.sh
           ./scripts/build-rpm.sh
 
       - name: Upload RPM artifacts
+        if: hashFiles('upstream/configure.ac') != ''
         uses: actions/upload-artifact@v4
         with:
           name: gnucobol-almalinux-10-x86_64
