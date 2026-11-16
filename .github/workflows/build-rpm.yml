@@ -2,6 +2,10 @@ name: Build AlmaLinux 10 RPM
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Sync official GnuCOBOL source"]
+    types: [completed]
+    branches: [main]
   push:
     branches: [main]
     paths:
@@ -15,12 +19,15 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     container:
       image: almalinux:10
     steps:
       - name: Install build requirements
         run: |
+          dnf -y install dnf-plugins-core
+          dnf config-manager --set-enabled crb
           dnf -y install \
             gcc gcc-c++ make autoconf automake libtool \
             gettext-devel ncurses-devel gmp-devel \
@@ -30,6 +37,8 @@ jobs:
 
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Build and test RPM
         run: |
