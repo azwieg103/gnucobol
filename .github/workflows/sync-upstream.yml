@@ -1,0 +1,52 @@
+name: Sync official GnuCOBOL source
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-gnucobol-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out packaging repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Subversion client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y subversion
+
+      - name: Export official GnuCOBOL 3.x branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://svn.code.sf.net/p/gnucobol/code/branches/gnucobol-3.x"
+          REV="$(svn info --show-item revision "$URL")"
+          rm -rf upstream
+          svn export --non-interactive -r "$REV" "$URL" upstream
+          printf '%s\n' "$REV" > upstream/SVN_REVISION
+          printf 'Synced SourceForge GnuCOBOL 3.x revision %s\n' "$REV"
+
+      - name: Commit upstream changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- upstream && git diff --cached --quiet -- upstream; then
+            echo "No upstream changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add upstream/
+          git commit -m "Sync official GnuCOBOL 3.x upstream"
+          git push
