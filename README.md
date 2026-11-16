@@ -42,7 +42,7 @@ On AlmaLinux 10, install the build requirements listed in
 \`.github/workflows/build-rpm.yml\`, then run:
 
 \`\`\`bash
-./scripts/build-rpm.sh
+bash scripts/build-rpm.sh
 \`\`\`
 
 The generated RPMs are placed in \`dist/\`.
