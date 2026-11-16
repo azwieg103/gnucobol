@@ -1,0 +1,45 @@
+name: Build AlmaLinux 10 RPM
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "upstream/**"
+      - "packaging/**"
+      - "scripts/**"
+      - ".github/workflows/build-rpm.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: almalinux:10
+    steps:
+      - name: Install build requirements
+        run: |
+          dnf -y install \
+            gcc gcc-c++ make autoconf automake libtool \
+            gettext-devel ncurses-devel gmp-devel \
+            pkgconf-pkg-config rpm-build rpmdevtools \
+            tar gzip findutils sed grep coreutils
+          dnf clean all
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build and test RPM
+        run: |
+          chmod +x scripts/build-rpm.sh
+          ./scripts/build-rpm.sh
+
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnucobol-almalinux-10-x86_64
+          path: dist/*.rpm
+          if-no-files-found: error
+          retention-days: 30
