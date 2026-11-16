@@ -45,12 +45,25 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-echo "Building upstream GnuCOBOL version: $VERSION"
-tar -czf "$RPMBUILD/SOURCES/gnucobol-$VERSION.tar.gz" -C "$WORK" gnucobol
+# RPM Version fields cannot contain hyphens. Keep the upstream base version
+# in Version and encode prerelease suffixes in the RPM Release field.
+RPM_VERSION="${VERSION%%-*}"
+RPM_RELEASE="ZWIEGNET.1"
+if [[ "$VERSION" == *-* ]]; then
+  VERSION_SUFFIX="${VERSION#"$RPM_VERSION"}"
+  VERSION_SUFFIX="${VERSION_SUFFIX#-}"
+  VERSION_SUFFIX="${VERSION_SUFFIX//-/.}"
+  RPM_RELEASE+=".${VERSION_SUFFIX}"
+fi
+
+echo "Upstream version: $VERSION"
+echo "RPM version-release: $RPM_VERSION-$RPM_RELEASE"
+tar -czf "$RPMBUILD/SOURCES/gnucobol-$RPM_VERSION.tar.gz" -C "$WORK" gnucobol
 
 rpmbuild -ba "$ROOT/packaging/gnucobol.spec" \
   --define "_topdir $RPMBUILD" \
-  --define "gnucobol_version $VERSION"
+  --define "gnucobol_version $RPM_VERSION" \
+  --define "gnucobol_release $RPM_RELEASE"
 
 find "$RPMBUILD/RPMS" -type f -name '*.rpm' -exec cp -v {} "$DIST/" \;
 find "$RPMBUILD/SRPMS" -type f -name '*.src.rpm' -exec cp -v {} "$DIST/" \;
