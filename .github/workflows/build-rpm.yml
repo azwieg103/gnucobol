@@ -32,7 +32,7 @@ jobs:
             gcc gcc-c++ make autoconf automake libtool \
             gettext-devel ncurses-devel gmp-devel \
             pkgconf-pkg-config rpm-build rpmdevtools git \
-            tar gzip findutils sed grep
+            tar gzip findutils sed grep help2man
           dnf clean all
 
       - name: Check out repository
