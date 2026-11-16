@@ -29,7 +29,7 @@ jobs:
           dnf -y install dnf-plugins-core
           dnf config-manager --set-enabled crb
           dnf -y install \
-            gcc gcc-c++ make autoconf automake libtool \
+            gcc gcc-c++ make autoconf automake libtool bison \
             gettext-devel ncurses-devel gmp-devel \
             pkgconf-pkg-config rpm-build rpmdevtools git \
             tar gzip findutils sed grep help2man
