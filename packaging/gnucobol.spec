@@ -19,7 +19,7 @@ the compiler and its runtime library.
 %setup -q -n gnucobol
 
 %build
-%configure --disable-static
+%configure --disable-static --without-db
 %make_build
 
 %check
