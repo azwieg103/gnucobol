@@ -38,7 +38,7 @@ else
   exit 1
 fi
 
-VERSION="$(sed -nE 's/^AC_INIT\(\[[^]]+\], *\[([^]]+)\].*/\1/p' configure.ac | head -n1)"
+VERSION="$(sed -n '/^AC_INIT(\[GnuCOBOL\],/{n;s/^[[:space:]]*\[\([^]]*\)\].*/\1/p;}' configure.ac | head -n1)"
 if [[ -z "$VERSION" ]]; then
   echo "ERROR: could not extract upstream version from configure.ac." >&2
   grep -n 'AC_INIT' configure.ac >&2 || true
