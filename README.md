@@ -39,13 +39,20 @@ snapshot.
 ## Published packages
 
 Successful builds are published as GitHub Releases in this repository.
-Releases include the RPM build outputs for Enterprise Linux 10 x86_64,
-including the binary package and source package.
+Each release includes the binary RPM and source RPM for Enterprise Linux 10
+x86_64.
 
-Package versioning follows the upstream numeric version, with the ZWIEGNET
-RPM release identifier. Upstream development suffixes such as `-dev` are
-not included in the RPM filename; for example, upstream `3.3-dev` produces
-a package version-release of `3.3-ZWIEGNET.1`.
+RPM versioning uses the exact upstream numeric version, followed by a
+ZWIEGNET rebuild identifier. Upstream suffixes such as `-dev` are omitted
+because RPM version fields do not use that suffix. For example, upstream
+`3.3-dev` becomes RPM version `3.3`.
+
+The release field starts at `ZWIEGNET.1` for each upstream version and
+increments for every subsequent published build of that same version:
+`ZWIEGNET.2`, `ZWIEGNET.3`, and so on. A new upstream version starts again
+at `ZWIEGNET.1`. The RPM filename therefore follows this pattern:
+
+`gnucobol-<upstream-version>-ZWIEGNET.<build-number>.x86_64.rpm`
 
 ## Automation
 
@@ -53,6 +60,8 @@ a package version-release of `3.3-ZWIEGNET.1`.
   and can also be run manually.
 - A changed upstream export is committed to `main`.
 - The RPM workflow builds and tests the source in an AlmaLinux 10 environment.
+- Builds are serialized and the next ZWIEGNET number is selected from
+  previously published releases for that upstream version.
 - RPMs are published to a GitHub Release only after the build and test suite
   complete successfully.
 
@@ -60,7 +69,7 @@ a package version-release of `3.3-ZWIEGNET.1`.
 
 - Package name: `gnucobol`
 - Architecture: `x86_64`
-- RPM release identifier: `ZWIEGNET.1`
+- RPM release identifier: `ZWIEGNET.N` (incrementing per upstream version)
 - Berkeley DB support is disabled; no Berkeley DB development dependency is
   installed in the build environment.
 - Database client integrations such as PostgreSQL are application build
@@ -75,4 +84,5 @@ On AlmaLinux 10, install the build requirements listed in
 bash scripts/build-rpm.sh
 ```
 
-The generated RPMs are placed in `dist/`.
+The generated RPMs are placed in `dist/`. A local build defaults to
+`ZWIEGNET.1`; CI supplies the next release number automatically.
