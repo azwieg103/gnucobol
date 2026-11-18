@@ -45,16 +45,11 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-# RPM Version fields cannot contain hyphens. Keep the upstream base version
-# in Version and encode prerelease suffixes in the RPM Release field.
+# RPM Version fields cannot contain hyphens. Use the upstream numeric
+# base version and a consistent ZWIEGNET release identifier. Upstream suffixes
+# such as -dev are intentionally omitted from the RPM filename/version-release.
 RPM_VERSION="${VERSION%%-*}"
 RPM_RELEASE="ZWIEGNET.1"
-if [[ "$VERSION" == *-* ]]; then
-  VERSION_SUFFIX="${VERSION#"$RPM_VERSION"}"
-  VERSION_SUFFIX="${VERSION_SUFFIX#-}"
-  VERSION_SUFFIX="${VERSION_SUFFIX//-/.}"
-  RPM_RELEASE+=".${VERSION_SUFFIX}"
-fi
 
 echo "Upstream version: $VERSION"
 echo "RPM version-release: $RPM_VERSION-$RPM_RELEASE"
