@@ -49,10 +49,10 @@ because RPM version fields do not use that suffix. For example, upstream
 
 The release field starts at `ZWIEGNET.1` for each upstream version and
 increments for every subsequent published build of that same version:
-`ZWIEGNET.2`, `ZWIEGNET.3`, and so on. A new upstream version starts again
-at `ZWIEGNET.1`. The RPM filename therefore follows this pattern:
+`ZWIEGNET.2.el10`, `ZWIEGNET.3.el10`, and so on. A new upstream version starts again
+at `ZWIEGNET.1.el10`. The `.el10` suffix identifies the Enterprise Linux 10 target. The RPM filename therefore follows this pattern:
 
-`gnucobol-<upstream-version>-ZWIEGNET.<build-number>.x86_64.rpm`
+`gnucobol-<upstream-version>-ZWIEGNET.<build-number>.el10.x86_64.rpm`
 
 ## Automation
 
@@ -69,7 +69,7 @@ at `ZWIEGNET.1`. The RPM filename therefore follows this pattern:
 
 - Package name: `gnucobol`
 - Architecture: `x86_64`
-- RPM release identifier: `ZWIEGNET.N` (incrementing per upstream version)
+- RPM release identifier: `ZWIEGNET.N.el10` (incrementing per upstream version)
 - Berkeley DB support is disabled; no Berkeley DB development dependency is
   installed in the build environment.
 - Database client integrations such as PostgreSQL are application build
@@ -116,4 +116,4 @@ bash scripts/build-rpm.sh
 ```
 
 The generated RPMs are placed in `dist/`. A local build defaults to
-`ZWIEGNET.1`; CI supplies the next release number automatically.
+`ZWIEGNET.1.el10`; CI supplies the next release number automatically.
