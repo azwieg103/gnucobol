@@ -45,7 +45,7 @@ jobs:
 
       - name: Create upstream synchronization pull request
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
