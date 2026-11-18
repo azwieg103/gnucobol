@@ -19,7 +19,10 @@ the compiler and its runtime library.
 %setup -q -n gnucobol
 
 %build
-%configure --disable-static --without-db
+# Upstream tests compile generated C with -O0 (-debug). Keep _FORTIFY_SOURCE,
+# but suppress its expected preprocessor warning when optimization is absent;
+# the test suite requires clean stderr.
+CFLAGS="%{optflags} -Wno-cpp" %configure --disable-static --without-db
 %make_build
 
 %check
