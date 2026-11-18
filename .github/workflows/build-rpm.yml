@@ -84,13 +84,14 @@ jobs:
                   tag = release.get("tag_name", "")
                   if tag.startswith(prefix):
                       suffix = tag[len(prefix):]
-                      if suffix.isdigit():
-                          maximum = max(maximum, int(suffix))
+                      number = re.fullmatch(r"([1-9][0-9]*)(?:\\.el10)?", suffix)
+                      if number:
+                          maximum = max(maximum, int(number.group(1)))
               if len(releases) < 100:
                   break
               page += 1
           rebuild = maximum + 1
-          value = f"ZWIEGNET.{rebuild}"
+          value = f"ZWIEGNET.{rebuild}.el10"
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"release={value}\n")
           print(f"Upstream version: {upstream_version}")
@@ -134,7 +135,7 @@ jobs:
         if: steps.freshness.outputs.is_current == 'true'
         id: meta
         run: |
-          rpm_file=$(find dist -maxdepth 1 -type f -name 'gnucobol-[0-9]*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' | head -n1)
+          rpm_file=$(find dist -maxdepth 1 -type f -name 'gnucobol-[0-9]*.el10.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' | head -n1)
           test -n "$rpm_file"
           version=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$rpm_file")
           echo "version=$version" >> "$GITHUB_OUTPUT"
