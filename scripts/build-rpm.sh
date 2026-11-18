@@ -50,7 +50,7 @@ fi
 # default to .1; CI selects the next number from published releases.
 RPM_VERSION="${VERSION%%-*}"
 RPM_RELEASE="${RPM_RELEASE:-ZWIEGNET.1.el10}"
-if [[ ! "$RPM_RELEASE" =~ ^ZWIEGNET\.[1-9][0-9]*$ ]]; then
+if [[ ! "$RPM_RELEASE" =~ ^ZWIEGNET\.[1-9][0-9]*\.el10$ ]]; then
   echo "ERROR: invalid RPM_RELEASE '$RPM_RELEASE' (expected ZWIEGNET.N.el10)." >&2
   exit 1
 fi
