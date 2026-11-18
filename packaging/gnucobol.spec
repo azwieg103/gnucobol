@@ -33,7 +33,13 @@ TERM=xterm %make_build check
 %make_install
 
 # Capture the complete installed file list without claiming unrelated system files.
-find %{buildroot} -type f -o -type l | sed 's#^%{buildroot}##' | sort > %{_builddir}/gnucobol-filelist
+find %{buildroot} \( -type f -o -type l \) \\
+  ! -name '*.la' \\
+  ! -path '%{buildroot}%{_mandir}/man1/*' \\
+  ! -path '%{buildroot}%{_infodir}/*' \\
+  | sed 's#^%{buildroot}##' | sort > %{_builddir}/gnucobol-filelist
 
 %files -f %{_builddir}/gnucobol-filelist
+%{_mandir}/man1/*.1*
+%{_infodir}/*.info*
 %license COPYING
