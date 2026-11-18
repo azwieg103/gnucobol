@@ -26,7 +26,8 @@ CFLAGS="%{optflags} -Wno-cpp" %configure --disable-static --without-db
 %make_build
 
 %check
-%make_build check
+# The curses tests need a real terminfo entry in the headless build container.
+TERM=xterm %make_build check
 
 %install
 %make_install
