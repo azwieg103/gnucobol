@@ -45,11 +45,15 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-# RPM Version fields cannot contain hyphens. Use the upstream numeric
-# base version and a consistent ZWIEGNET release identifier. Upstream suffixes
-# such as -dev are intentionally omitted from the RPM filename/version-release.
+# RPM Version fields cannot contain hyphens. Preserve the upstream numeric
+# version and append the ZWIEGNET rebuild number supplied by CI. Local builds
+# default to .1; CI selects the next number from published releases.
 RPM_VERSION="${VERSION%%-*}"
-RPM_RELEASE="ZWIEGNET.1"
+RPM_RELEASE="${RPM_RELEASE:-ZWIEGNET.1}"
+if [[ ! "$RPM_RELEASE" =~ ^ZWIEGNET\.[1-9][0-9]*$ ]]; then
+  echo "ERROR: invalid RPM_RELEASE '$RPM_RELEASE' (expected ZWIEGNET.N)." >&2
+  exit 1
+fi
 
 echo "Upstream version: $VERSION"
 echo "RPM version-release: $RPM_VERSION-$RPM_RELEASE"
