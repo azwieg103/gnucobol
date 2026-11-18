@@ -2,10 +2,6 @@ name: Build and Publish AlmaLinux 10 RPM
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Sync official GnuCOBOL source"]
-    types: [completed]
-    branches: [main]
   push:
     branches: [main]
     paths:
@@ -13,22 +9,23 @@ on:
       - "packaging/**"
       - "scripts/**"
       - ".github/workflows/build-rpm.yml"
-      - ".github/workflows/publish-release.yml"
 
-# Keep version selection, build, and release publication in one serialized run.
-# This prevents two builds of the same upstream version from claiming the
-# same ZWIEGNET rebuild number.
+# Serialize builds so rebuild numbers cannot race.
 concurrency:
   group: gnucobol-rpm-build
   cancel-in-progress: false
 
+# Default-deny: jobs must explicitly request additional permissions.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is_current: \${{ steps.freshness.outputs.is_current }}
     container:
       image: almalinux:10
     steps:
@@ -44,14 +41,15 @@ jobs:
           dnf clean all
 
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: main
+          ref: \${{ github.sha }}
+          persist-credentials: false
 
       - name: Select next ZWIEGNET rebuild number
         id: release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: \${{ github.token }}
         run: |
           python3 - <<'PY'
           import json
@@ -71,7 +69,7 @@ jobs:
           maximum = 0
           page = 1
           while True:
-              url = f"https://api.github.com/repos/${{ github.repository }}/releases?per_page=100&page={page}"
+              url = f"https://api.github.com/repos/\${{ github.repository }}/releases?per_page=100&page={page}"
               request = urllib.request.Request(url, headers={
                   "Accept": "application/vnd.github+json",
                   "Authorization": f"Bearer {token}",
@@ -99,16 +97,15 @@ jobs:
           PY
 
       - name: Build and test RPM
-        if: hashFiles('upstream/configure.ac') != ''
-        env:
-          RPM_RELEASE: ${{ steps.release.outputs.release }}
         run: |
           chmod +x scripts/build-rpm.sh
           ./scripts/build-rpm.sh
+        env:
+          RPM_RELEASE: \${{ steps.release.outputs.release }}
 
       - name: Upload test diagnostics
         if: always() && hashFiles('rpmbuild/BUILD/gnucobol/tests/testsuite.log') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: gnucobol-test-diagnostics
           path: |
@@ -117,19 +114,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload RPM artifacts
-        if: success() && hashFiles('upstream/configure.ac') != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: gnucobol-almalinux-10-x86_64
-          path: dist/*.rpm
-          if-no-files-found: error
-          retention-days: 30
-
       - name: Confirm this is still the latest main build
         if: success()
         id: freshness
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             const ref = await github.rest.git.getRef({
@@ -137,40 +125,60 @@ jobs:
               repo: context.repo.repo,
               ref: "heads/main"
             });
-            const expectedSha = context.eventName === "workflow_run"
-              ? context.payload.workflow_run.head_sha
-              : context.sha;
-            const isCurrent = ref.data.object.sha === expectedSha;
+            const isCurrent = ref.data.object.sha === context.sha;
             core.setOutput("is_current", String(isCurrent));
             if (!isCurrent) core.info("Not publishing an RPM from an outdated build.");
 
-      - name: Determine RPM release metadata
-        if: steps.freshness.outputs.is_current == 'true'
-        id: meta
+      - name: Upload RPM artifacts
+        if: success() && steps.freshness.outputs.is_current == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gnucobol-almalinux-10-x86_64
+          path: dist/*.rpm
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: needs.build.outputs.is_current == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download RPM artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: gnucobol-almalinux-10-x86_64
+          path: dist
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: \${{ github.token }}
+          GH_REPO: \${{ github.repository }}
+          GITHUB_SHA: \${{ github.sha }}
         run: |
+          set -euo pipefail
           rpm_file=$(find dist -maxdepth 1 -type f -name 'gnucobol-[0-9]*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' | head -n1)
           test -n "$rpm_file"
           version=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$rpm_file")
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          rpm -qp --qf 'RPM: %{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n' "$rpm_file"
+          tag="gnucobol-$version"
+          title="GnuCOBOL $version (Enterprise Linux 10)"
+          notes=$(cat <<'EOF'
+          Rebuilt GnuCOBOL packages for Enterprise Linux 10 (x86_64), intended for AlmaLinux 10, Red Hat Enterprise Linux 10, Oracle Linux 10, Rocky Linux 10, and CentOS Stream 10.
 
-      - name: Publish GitHub release
-        if: steps.freshness.outputs.is_current == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: gnucobol-${{ steps.meta.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          name: GnuCOBOL ${{ steps.meta.outputs.version }} (Enterprise Linux 10)
-          prerelease: false
-          make_latest: true
-          overwrite_files: true
-          fail_on_unmatched_files: true
-          files: dist/*.rpm
-          body: |
-            Rebuilt GnuCOBOL packages for Enterprise Linux 10 (x86_64), intended for AlmaLinux 10, Red Hat Enterprise Linux 10, Oracle Linux 10, Rocky Linux 10, and CentOS Stream 10.
+          Rebuilt from the source snapshot checked into this GitHub repository, synchronized from the official GnuCOBOL 3.x upstream branch.
 
-            Rebuilt from the source snapshot checked into this GitHub repository, synchronized from the official GnuCOBOL 3.x upstream branch.
+          The RPM version follows upstream. The ZWIEGNET rebuild number increments for each published build of the same upstream version. These packages are supplied as-is, with no warranty or support. They are built on AlmaLinux 10 and are not individually tested on every Enterprise Linux distribution.
 
-            The RPM version follows upstream. The ZWIEGNET rebuild number increments for each published build of the same upstream version. These packages are supplied as-is, with no warranty or support. They are built on AlmaLinux 10 and are not individually tested on every Enterprise Linux distribution.
-
-            Includes binary RPMs and the source RPM. Publication occurs only after the build and upstream test suite succeed.
+          Includes binary RPMs and the source RPM. Publication occurs only after the build and upstream test suite succeed.
+          EOF
+          )
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; refusing to overwrite published artifacts."
+            exit 1
+          fi
+          gh release create "$tag" dist/*.rpm \
+            --target "$GITHUB_SHA" \
+            --title "$title" \
+            --notes "$notes" \
+            --latest
