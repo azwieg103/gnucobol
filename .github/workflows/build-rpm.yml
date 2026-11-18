@@ -46,8 +46,19 @@ jobs:
           chmod +x scripts/build-rpm.sh
           ./scripts/build-rpm.sh
 
+      - name: Upload test diagnostics
+        if: always() && hashFiles('rpmbuild/BUILD/gnucobol/tests/testsuite.log') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnucobol-test-diagnostics
+          path: |
+            rpmbuild/BUILD/gnucobol/tests/testsuite.log
+            rpmbuild/BUILD/gnucobol/tests/testsuite.dir/**
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload RPM artifacts
-        if: hashFiles('upstream/configure.ac') != ''
+        if: success() && hashFiles('upstream/configure.ac') != ''
         uses: actions/upload-artifact@v4
         with:
           name: gnucobol-almalinux-10-x86_64
