@@ -23,13 +23,14 @@ the compiler and its runtime library.
 # into GnuCOBOL's installed COB_CFLAGS.  Those specs are intended for RPM
 # builds and can require RPM_ARCH when users compile COBOL programs later.
 # Configure with portable flags, then apply the full EL build flags to the
-# package build itself.
-CFLAGS="-O2" %configure --disable-static --without-db
-%make_build CFLAGS="%{optflags} -Wno-cpp"
+# package build itself. Clear RPM linker/preprocessor flags for configure's
+# compiler probes; restore the RPM linker flags for the actual build.
+CFLAGS="-O2" CXXFLAGS="-O2" CPPFLAGS="" LDFLAGS="" %configure --disable-static --without-db
+%make_build CFLAGS="%{optflags} -Wno-cpp" LDFLAGS="%{build_ldflags}"
 
 %check
 # The curses tests need a real terminfo entry in the headless build container.
-TERM=xterm %make_build CFLAGS="%{optflags} -Wno-cpp" check
+TERM=xterm %make_build CFLAGS="%{optflags} -Wno-cpp" LDFLAGS="%{build_ldflags}" check
 
 %install
 %make_install
