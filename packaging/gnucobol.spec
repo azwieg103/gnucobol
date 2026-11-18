@@ -25,7 +25,26 @@ the compiler and its runtime library.
 # Configure with portable flags, then apply the full EL build flags to the
 # package build itself. Clear RPM linker/preprocessor flags for configure's
 # compiler probes; restore the RPM linker flags for the actual build.
-CFLAGS="-O2" CXXFLAGS="-O2" CPPFLAGS="" LDFLAGS="" %configure --disable-static --without-db || { cat config.log; exit 1; }
+# Invoke configure directly: the EL %configure macro re-applies RPM LDFLAGS
+# after environment assignments, which breaks its native executable probe
+# when the build-only linker flags force non-PIE linking.
+CFLAGS="-O2" CXXFLAGS="-O2" CPPFLAGS="" LDFLAGS="" ./configure \
+    --prefix=%{_prefix} \
+    --exec-prefix=%{_exec_prefix} \
+    --bindir=%{_bindir} \
+    --sbindir=%{_sbindir} \
+    --sysconfdir=%{_sysconfdir} \
+    --datadir=%{_datadir} \
+    --includedir=%{_includedir} \
+    --libdir=%{_libdir} \
+    --libexecdir=%{_libexecdir} \
+    --localstatedir=%{_localstatedir} \
+    --runstatedir=/run \
+    --sharedstatedir=%{_sharedstatedir} \
+    --mandir=%{_mandir} \
+    --infodir=%{_infodir} \
+    --disable-dependency-tracking \
+    --disable-static --without-db || { cat config.log; exit 1; }
 %make_build CFLAGS="%{optflags} -Wno-cpp" LDFLAGS="%{build_ldflags}"
 
 %check
