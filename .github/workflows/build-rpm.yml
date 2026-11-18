@@ -60,7 +60,7 @@ jobs:
 
           with open("upstream/configure.ac", encoding="utf-8") as source:
               content = source.read()
-          match = re.search(r"AC_INIT\\(\\[GnuCOBOL\\],\\s*\\[([^]]+)\\]", content)
+          match = re.search(r"AC_INIT\(\[GnuCOBOL\],\s*\[([^]]+)\]", content)
           if not match:
               raise SystemExit("Could not determine the upstream GnuCOBOL version.")
           upstream_version = match.group(1)
