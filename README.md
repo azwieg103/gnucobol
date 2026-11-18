@@ -75,6 +75,37 @@ at `ZWIEGNET.1`. The RPM filename therefore follows this pattern:
 - Database client integrations such as PostgreSQL are application build
   dependencies, not compiler-package dependencies.
 
+
+## Example: Hello, World!
+
+Create a file named `helloworld.cob`:
+
+```cobol
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. HELLO-WORLD.
+       PROCEDURE DIVISION.
+           DISPLAY "Hello, World!".
+           STOP RUN.
+```
+
+Compile it with GnuCOBOL:
+
+```bash
+cobc -x helloworld.cob
+```
+
+Run the resulting executable:
+
+```bash
+./helloworld
+```
+
+Expected output:
+
+```text
+Hello, World!
+```
+
 ## Local build
 
 On AlmaLinux 10, install the build requirements listed in
