@@ -5,8 +5,9 @@ on:
   schedule:
     - cron: "17 6 1 * *"
 
+# This workflow only creates an upstream-sync branch and pull request.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: sync-gnucobol-upstream
@@ -15,11 +16,15 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Check out packaging repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Install Subversion client
         run: |
@@ -36,11 +41,16 @@ jobs:
           svn export --non-interactive -r "$REV" "$URL" upstream
           printf '%s\n' "$REV" > upstream/SVN_REVISION
           printf 'Synced SourceForge GnuCOBOL 3.x revision %s\n' "$REV"
+          echo "SVN_REVISION=$REV" >> "$GITHUB_ENV"
 
-      - name: Commit upstream changes
+      - name: Create upstream synchronization pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          branch="upstream-sync-$SVN_REVISION"
+          git switch --create "$branch"
           git add upstream/
           if git diff --cached --quiet -- upstream; then
             echo "No upstream changes."
@@ -48,5 +58,15 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Sync official GnuCOBOL 3.x upstream"
-          git push
+          git commit -m "Sync official GnuCOBOL 3.x upstream (r$SVN_REVISION)"
+          git push --set-upstream origin "$branch"
+          existing=$(gh pr list --state open --head "$branch" --json number --jq 'length')
+          if [ "$existing" -eq 0 ]; then
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "Sync official GnuCOBOL 3.x upstream (r$SVN_REVISION)" \
+              --body "Automated synchronization from the official SourceForge GnuCOBOL 3.x branch at SVN revision $SVN_REVISION.
+
+          Please review the upstream source changes before merging. The RPM build and release workflow runs after the update reaches main."
+          fi
