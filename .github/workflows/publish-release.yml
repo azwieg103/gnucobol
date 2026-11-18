@@ -39,11 +39,13 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Install RPM tooling
+        if: steps.freshness.outputs.is_current == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y rpm
 
       - name: Determine RPM version
+        if: steps.freshness.outputs.is_current == 'true'
         id: meta
         run: |
           rpm_file=$(find release -maxdepth 1 -type f -name 'gnucobol-[0-9]*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' | head -n1)
@@ -54,6 +56,7 @@ jobs:
           rpm -qp --qf 'RPM: %{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n' "$rpm_file"
 
       - name: Publish GitHub prerelease
+        if: steps.freshness.outputs.is_current == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: gnucobol-${{ steps.meta.outputs.version }}
