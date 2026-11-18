@@ -1,6 +1,6 @@
 Name:           gnucobol
 Version:        %{gnucobol_version}
-Release:        %{?gnucobol_release}%{!?gnucobol_release:ZWIEGNET.1}
+Release:        %{?gnucobol_release}%{!?gnucobol_release:ZWIEGNET.1.el10}
 Summary:        GNU COBOL compiler and runtime
 License:        GPL-3.0-or-later
 URL:            https://gnucobol.sourceforge.io/
