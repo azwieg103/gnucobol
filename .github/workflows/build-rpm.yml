@@ -30,7 +30,7 @@ jobs:
           dnf config-manager --set-enabled crb
           dnf -y install \
             gcc gcc-c++ make autoconf automake libtool bison flex \
-            gettext-devel ncurses-devel gmp-devel texinfo \
+            gettext-devel ncurses-devel ncurses-term gmp-devel texinfo \
             pkgconf-pkg-config rpm-build rpmdevtools git \
             tar gzip findutils sed grep help2man
           dnf clean all
