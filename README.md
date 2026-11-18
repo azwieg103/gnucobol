@@ -47,10 +47,13 @@ ZWIEGNET rebuild identifier. Upstream suffixes such as `-dev` are omitted
 because RPM version fields do not use that suffix. For example, upstream
 `3.3-dev` becomes RPM version `3.3`.
 
-The release field starts at `ZWIEGNET.1` for each upstream version and
-increments for every subsequent published build of that same version:
-`ZWIEGNET.2.el10`, `ZWIEGNET.3.el10`, and so on. A new upstream version starts again
-at `ZWIEGNET.1.el10`. The `.el10` suffix identifies the Enterprise Linux 10 target. The RPM filename therefore follows this pattern:
+The release field uses the format `ZWIEGNET.N.el10`, where `N` is a
+per-upstream-version rebuild counter. For this repository's existing GnuCOBOL
+3.3 releases, the earlier `ZWIEGNET.1` and `ZWIEGNET.2` builds predate the
+EL suffix; the next build is therefore `ZWIEGNET.3.el10`. Subsequent 3.3
+rebuilds increment the number (`ZWIEGNET.4.el10`, and so on). New upstream
+versions start at `ZWIEGNET.1.el10`. The `.el10` suffix identifies the
+Enterprise Linux 10 target. The RPM filename follows this pattern:
 
 `gnucobol-<upstream-version>-ZWIEGNET.<build-number>.el10.x86_64.rpm`
 
@@ -69,7 +72,7 @@ at `ZWIEGNET.1.el10`. The `.el10` suffix identifies the Enterprise Linux 10 targ
 
 - Package name: `gnucobol`
 - Architecture: `x86_64`
-- RPM release identifier: `ZWIEGNET.N.el10` (incrementing per upstream version)
+- RPM release identifier: `ZWIEGNET.N.el10` (EL10-qualified, incrementing per upstream version)
 - Berkeley DB support is disabled; no Berkeley DB development dependency is
   installed in the build environment.
 - Database client integrations such as PostgreSQL are application build
