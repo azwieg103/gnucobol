@@ -19,15 +19,17 @@ the compiler and its runtime library.
 %setup -q -n gnucobol
 
 %build
-# Upstream tests compile generated C with -O0 (-debug). Keep _FORTIFY_SOURCE,
-# but suppress its expected preprocessor warning when optimization is absent;
-# the test suite requires clean stderr.
-CFLAGS="%{optflags} -Wno-cpp" %configure --disable-static --without-db
-%make_build
+# Do not bake RPM-only GCC specs (redhat-hardened-cc1, annobin, package-notes)
+# into GnuCOBOL's installed COB_CFLAGS.  Those specs are intended for RPM
+# builds and can require RPM_ARCH when users compile COBOL programs later.
+# Configure with portable flags, then apply the full EL build flags to the
+# package build itself.
+CFLAGS="-O2" %configure --disable-static --without-db
+%make_build CFLAGS="%{optflags} -Wno-cpp"
 
 %check
 # The curses tests need a real terminfo entry in the headless build container.
-TERM=xterm %make_build check
+TERM=xterm %make_build CFLAGS="%{optflags} -Wno-cpp" check
 
 %install
 %make_install
