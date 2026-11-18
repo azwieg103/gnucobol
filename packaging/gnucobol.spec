@@ -25,9 +25,8 @@ the compiler and its runtime library.
 # Configure with portable flags, then apply the full EL build flags to the
 # package build itself. Clear RPM linker/preprocessor flags for configure's
 # compiler probes; restore the RPM linker flags for the actual build.
-# Invoke configure directly: the EL %configure macro re-applies RPM LDFLAGS
-# after environment assignments, which breaks its native executable probe
-# when the build-only linker flags force non-PIE linking.
+# Invoke configure directly rather than using the RPM configure helper, so
+# its build-only linker flags do not leak into configure's native probe.
 CFLAGS="-O2" CXXFLAGS="-O2" CPPFLAGS="" LDFLAGS="" ./configure \
     --prefix=%{_prefix} \
     --exec-prefix=%{_exec_prefix} \
