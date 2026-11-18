@@ -25,7 +25,8 @@ jobs:
     permissions:
       contents: read
     outputs:
-      is_current: \${{ steps.freshness.outputs.is_current }}
+      is_current: ${{ steps.freshness.outputs.is_current }}
+      rpm_version: ${{ steps.meta.outputs.version }}
     container:
       image: almalinux:10
     steps:
@@ -43,13 +44,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: \${{ github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Select next ZWIEGNET rebuild number
         id: release
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           import json
@@ -69,7 +70,7 @@ jobs:
           maximum = 0
           page = 1
           while True:
-              url = f"https://api.github.com/repos/\${{ github.repository }}/releases?per_page=100&page={page}"
+              url = f"https://api.github.com/repos/${{ github.repository }}/releases?per_page=100&page={page}"
               request = urllib.request.Request(url, headers={
                   "Accept": "application/vnd.github+json",
                   "Authorization": f"Bearer {token}",
@@ -101,7 +102,7 @@ jobs:
           chmod +x scripts/build-rpm.sh
           ./scripts/build-rpm.sh
         env:
-          RPM_RELEASE: \${{ steps.release.outputs.release }}
+          RPM_RELEASE: ${{ steps.release.outputs.release }}
 
       - name: Upload test diagnostics
         if: always() && hashFiles('rpmbuild/BUILD/gnucobol/tests/testsuite.log') != ''
@@ -129,6 +130,16 @@ jobs:
             core.setOutput("is_current", String(isCurrent));
             if (!isCurrent) core.info("Not publishing an RPM from an outdated build.");
 
+      - name: Determine RPM release metadata
+        if: steps.freshness.outputs.is_current == 'true'
+        id: meta
+        run: |
+          rpm_file=$(find dist -maxdepth 1 -type f -name 'gnucobol-[0-9]*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' | head -n1)
+          test -n "$rpm_file"
+          version=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$rpm_file")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          rpm -qp --qf 'RPM: %{NAME} %{VERSION}-%{RELEASE} %{ARCH}\\n' "$rpm_file"
+
       - name: Upload RPM artifacts
         if: success() && steps.freshness.outputs.is_current == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -153,14 +164,13 @@ jobs:
 
       - name: Publish GitHub release
         env:
-          GH_TOKEN: \${{ github.token }}
-          GH_REPO: \${{ github.repository }}
-          GITHUB_SHA: \${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          RPM_VERSION: ${{ needs.build.outputs.rpm_version }}
         run: |
           set -euo pipefail
-          rpm_file=$(find dist -maxdepth 1 -type f -name 'gnucobol-[0-9]*.x86_64.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' | head -n1)
-          test -n "$rpm_file"
-          version=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$rpm_file")
+          version="$RPM_VERSION"
           tag="gnucobol-$version"
           title="GnuCOBOL $version (Enterprise Linux 10)"
           notes=$(cat <<'EOF'
