@@ -13,6 +13,7 @@ on:
       - "packaging/**"
       - "scripts/**"
       - ".github/workflows/build-rpm.yml"
+      - ".github/workflows/publish-release.yml"
 
 permissions:
   contents: read
